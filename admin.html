@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STIP Admin Panel</title>
+    <style>
+        * { font-family: 'Hind Siliguri', sans-serif; }
+        body { padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h2 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, textarea, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px; }
+        button { background: #2ecc71; color: white; border: none; padding: 12px 25px; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #27ae60; }
+        .login-box { max-width: 400px; margin: 100px auto; }
+        .message { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .logout-btn { background: #e74c3c; float: right; }
+        .tabs { display: flex; margin-bottom: 20px; }
+        .tab { padding: 10px 20px; cursor: pointer; border-bottom: 2px solid transparent; }
+        .tab.active { border-color: #3498db; font-weight: bold; }
+    </style>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+    <div class="container" id="loginContainer">
+        <div class="login-box">
+            <h2>🔐 STIP Admin লগইন</h2>
+            <div class="form-group">
+                <label>ইমেইল:</label>
+                <input type="email" id="email" placeholder="admin@stip.com">
+            </div>
+            <div class="form-group">
+                <label>পাসওয়ার্ড:</label>
+                <input type="password" id="password" placeholder="আপনার পাসওয়ার্ড">
+            </div>
+            <button onclick="login()">লগইন করুন</button>
+            <div id="loginMessage"></div>
+        </div>
+    </div>
+
+    <div class="container" id="adminPanel" style="display:none;">
+        <button class="logout-btn" onclick="logout()">🚪 লগআউট</button>
+        <h2>📊 STIP Admin Dashboard</h2>
+        
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('notice')">📢 নোটিশ যোগ করুন</div>
+            <div class="tab" onclick="showTab('course')">📚 কোর্স যোগ করুন</div>
+            <div class="tab" onclick="showTab('view')">👁️ ডাটা দেখুন</div>
+        </div>
+
+        <!-- নোটিশ ফর্ম -->
+        <div id="noticeTab" class="tab-content">
+            <h3>নতুন নোটিশ প্রকাশ করুন</h3>
+            <div class="form-group">
+                <label>নোটিশের শিরোনাম:</label>
+                <input type="text" id="noticeTitle" placeholder="যেমন: ভর্তি চলছে">
+            </div>
+            <div class="form-group">
+                <label>বিস্তারিত:</label>
+                <textarea id="noticeDetails" rows="4" placeholder="বিস্তারিত লিখুন..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>তারিখ:</label>
+                <input type="date" id="noticeDate">
+            </div>
+            <div class="form-group">
+                <label>ধরন:</label>
+                <select id="noticeType">
+                    <option value="জরুরী">⚠️ জরুরী</option>
+                    <option value="সাধারণ">📢 সাধারণ</option>
+                    <option value="ছুটি">🎉 ছুটির ঘোষণা</option>
+                </select>
+            </div>
+            <button onclick="addNotice()">নোটিশ প্রকাশ করুন</button>
+            <div id="noticeMessage"></div>
+        </div>
+
+        <!-- কোর্স ফর্ম -->
+        <div id="courseTab" class="tab-content" style="display:none;">
+            <h3>নতুন কোর্স যোগ করুন</h3>
+            <div class="form-group">
+                <label>কোর্সের নাম:</label>
+                <input type="text" id="courseName" placeholder="যেমন: টেইলারিং এন্ড ড্রেস মেকিং">
+            </div>
+            <div class="form-group">
+                <label>মেয়াদ:</label>
+                <input type="text" id="courseDuration" placeholder="যেমন: ৬ মাস">
+            </div>
+            <div class="form-group">
+                <label>বিবরণ:</label>
+                <textarea id="courseDescription" rows="4" placeholder="কোর্সের বিস্তারিত..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>কোর্স ফি (টাকায়):</label>
+                <input type="number" id="courseFee" placeholder="5000">
+            </div>
+            <button onclick="addCourse()">কোর্স সংরক্ষণ করুন</button>
+            <div id="courseMessage"></div>
+        </div>
+
+        <!-- ডাটা ভিউ -->
+        <div id="viewTab" class="tab-content" style="display:none;">
+            <h3>সকল নোটিশ</h3>
+            <div id="noticesList"></div>
+            
+            <h3 style="margin-top:40px;">সকল কোর্স</h3>
+            <div id="coursesList"></div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase কনফিগারেশন (আপনার নিজের কোড দিয়ে প্রতিস্থাপন করুন)
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "stip-admin.firebaseapp.com",
+            projectId: "stip-admin",
+            storageBucket: "stip-admin.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Firebase ইনিশিয়ালাইজ
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        // আপনার Firebase Console থেকে প্রকৃত কোড পাবেন
+        // Project Settings → General → Your apps → Web app → Config
+
+        // লগইন ফাংশন
+        function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            auth.signInWithEmailAndPassword(email, password)
+                .then((userCredential) => {
+                    document.getElementById('loginContainer').style.display = 'none';
+                    document.getElementById('adminPanel').style.display = 'block';
+                    loadData();
+                })
+                .catch((error) => {
+                    document.getElementById('loginMessage').innerHTML = 
+                        `<div class="error">❌ ভুল ইমেইল বা পাসওয়ার্ড</div>`;
+                });
+        }
+
+        // নোটিশ যোগ করুন
+        function addNotice() {
+            const notice = {
+                title: document.getElementById('noticeTitle').value,
+                details: document.getElementById('noticeDetails').value,
+                date: document.getElementById('noticeDate').value || new Date().toISOString().split('T')[0],
+                type: document.getElementById('noticeType').value,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            db.collection("notices").add(notice)
+                .then(() => {
+                    document.getElementById('noticeMessage').innerHTML = 
+                        `<div class="success">✅ নোটিশ সফলভাবে প্রকাশিত হয়েছে!</div>`;
+                    document.getElementById('noticeTitle').value = '';
+                    document.getElementById('noticeDetails').value = '';
+                    loadData();
+                })
+                .catch((error) => {
+                    document.getElementById('noticeMessage').innerHTML = 
+                        `<div class="error">❌ ত্রুটি: ${error.message}</div>`;
+                });
+        }
+
+        // ডাটা লোড করুন
+        function loadData() {
+            // নোটিশ লোড
+            db.collection("notices").orderBy("timestamp", "desc").limit(10)
+                .get()
+                .then((querySnapshot) => {
+                    let html = '<ul>';
+                    querySnapshot.forEach((doc) => {
+                        const data = doc.data();
+                        html += `<li><strong>${data.title}</strong> - ${data.date} (${data.type})<br>${data.details}</li>`;
+                    });
+                    html += '</ul>';
+                    document.getElementById('noticesList').innerHTML = html;
+                });
+
+            // কোর্স লোড
+            db.collection("courses").get()
+                .then((querySnapshot) => {
+                    let html = '<ul>';
+                    querySnapshot.forEach((doc) => {
+                        const data = doc.data();
+                        html += `<li><strong>${data.name}</strong> - ${data.duration} (${data.fee} টাকা)<br>${data.description}</li>`;
+                    });
+                    html += '</ul>';
+                    document.getElementById('coursesList').innerHTML = html;
+                });
+        }
+
+        // ট্যাব পরিবর্তন
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.style.display = 'none';
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            document.getElementById(tabName + 'Tab').style.display = 'block';
+            event.target.classList.add('active');
+        }
+
+        // লগআউট
+        function logout() {
+            auth.signOut().then(() => {
+                document.getElementById('adminPanel').style.display = 'none';
+                document.getElementById('loginContainer').style.display = 'block';
+            });
+        }
+
+        // ইউজার লগইন অবস্থা চেক
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                document.getElementById('loginContainer').style.display = 'none';
+                document.getElementById('adminPanel').style.display = 'block';
+                loadData();
+            }
+        });
+    </script>
+</body>
+</html>
